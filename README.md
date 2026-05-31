@@ -27,6 +27,6 @@ python3 -m venv .venv
 ```
 
 ## 동작 개요
-수집(yt-dlp/chat-downloader, 무료) → 1차 로컬 필터(kiwipiepy) →
+수집(yt-dlp (라이브 식별 + live_chat 수집), 무료) → 1차 로컬 필터(kiwipiepy) →
 2차 LLM 판정(claude -p, 구독 한도) → 핫점수·시작시각 산정 → 대시보드.
 LLM 호출 실패/한도 초과 시 키워드 기반으로 자동 강등됩니다.

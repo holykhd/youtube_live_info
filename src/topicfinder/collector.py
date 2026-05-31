@@ -1,3 +1,8 @@
+import json
+import os
+import glob
+import tempfile
+import subprocess
 from datetime import datetime, timezone, timedelta
 from topicfinder.models import VideoRef
 
@@ -41,21 +46,68 @@ def identify_video(channel_url: str, *, extract=_default_extract) -> VideoRef | 
                     _ts_to_kst_iso(e.get("timestamp")), channel_url)
 
 
-def _default_get_chat(video_id: str) -> list[dict]:
-    from chat_downloader import ChatDownloader
+def parse_live_chat_lines(lines: list[str], video_id: str) -> list["ChatMsg"]:
+    """yt-dlp live_chat.json 라인들을 ChatMsg로 파싱. t_sec = videoOffsetTimeMsec/1000 (원값 유지)."""
+    from topicfinder.models import ChatMsg
+    out: list[ChatMsg] = []
+    for ln in lines:
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            o = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        off = o.get("videoOffsetTimeMsec")
+        if off is None:
+            continue
+        action = o.get("replayChatItemAction") or {}
+        for a in action.get("actions", []):
+            r = a.get("addChatItemAction", {}).get("item", {}).get("liveChatTextMessageRenderer")
+            if not r:
+                continue
+            text = "".join(x.get("text", "") for x in r.get("message", {}).get("runs", []))
+            if not text:
+                continue
+            author = r.get("authorName", {}).get("simpleText", "")
+            out.append(ChatMsg(video_id, int(off) / 1000.0, author, text))
+    return out
+
+
+def _default_fetch_lines(video_id: str, *, timeout_sec: int = 45) -> list[str]:
+    """yt-dlp로 live_chat을 임시파일에 받아 라인들 반환. 라이브는 timeout으로 끊고 .part를 파싱."""
     url = f"https://www.youtube.com/watch?v={video_id}"
-    return list(ChatDownloader().get_chat(url))
+    tmpdir = tempfile.mkdtemp(prefix="tf_chat_")
+    out_tmpl = os.path.join(tmpdir, "chat.%(ext)s")
+    cmd = ["yt-dlp", "--skip-download", "--write-subs",
+           "--sub-langs", "live_chat", "-o", out_tmpl, url]
+    try:
+        subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        pass  # 라이브: 부분 .part 파일 사용
+    files = sorted(glob.glob(os.path.join(tmpdir, "chat.live_chat.json*")))
+    lines: list[str] = []
+    if files:
+        try:
+            with open(files[0], encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except OSError:
+            lines = []
+    for fp in glob.glob(os.path.join(tmpdir, "*")):
+        try:
+            os.remove(fp)
+        except OSError:
+            pass
+    try:
+        os.rmdir(tmpdir)
+    except OSError:
+        pass
+    return lines
 
 
 def collect_chats(video_id: str, since_t: float, *,
-                  get_chat=_default_get_chat) -> list:
-    """since_t 이후의 채팅만 ChatMsg 로 변환(증분)."""
-    from topicfinder.models import ChatMsg
-    out = []
-    for m in get_chat(video_id):
-        t = float(m.get("time_in_seconds") or 0.0)
-        if t <= since_t:
-            continue
-        author = (m.get("author") or {}).get("name", "")
-        out.append(ChatMsg(video_id, t, author, m.get("message", "")))
-    return out
+                  fetch_lines=_default_fetch_lines) -> list:
+    """since_t 이후의 채팅만 ChatMsg로 변환(증분). 채팅 소스는 yt-dlp live_chat."""
+    lines = fetch_lines(video_id)
+    msgs = parse_live_chat_lines(lines, video_id)
+    return [m for m in msgs if m.t_sec > since_t]
