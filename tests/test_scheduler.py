@@ -53,3 +53,22 @@ def test_run_cycle_fallback_on_llm_error():
     assert stats["llm_failed"] is True
     assert len(s.load_topics()) >= 1
     assert all("[키워드]" in t.label for t in s.load_topics())
+
+
+def test_run_cycle_default_judge_uses_cfg_llm_model(monkeypatch):
+    # 기본 judge 사용 시 cfg.llm_model 이 llm.judge_topics 로 전달되는지 검증
+    import topicfinder.scheduler as sched
+    captured = {}
+
+    def fake_judge_topics(cands, prev_labels, *, model="haiku"):
+        captured["model"] = model
+        return [{"label": "X", "members": [{"video": b.video_id, "bucket": b.bucket_start}
+                                           for b in cands]}]
+
+    monkeypatch.setattr(sched._llm, "judge_topics", fake_judge_topics)
+
+    s, fi, fc, _ = _deps()
+    cfg = Config(activity_threshold=0.0, min_keywords=1, llm_model="sonnet")
+    # judge 를 주입하지 않음 → 기본 judge 경로 사용
+    stats = sched.run_cycle(s, cfg, KIWI, identify=fi, collect=fc)
+    assert captured["model"] == "sonnet"

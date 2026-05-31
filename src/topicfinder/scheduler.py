@@ -45,7 +45,9 @@ def _fallback_topics(buckets, started_at, channel_of):
 
 def run_cycle(store: Store, cfg: Config, kiwi, *,
               identify=_default_identify, collect=_default_collect,
-              judge=_default_judge) -> dict:
+              judge=None) -> dict:
+    if judge is None:
+        judge = lambda cands, prev: _llm.judge_topics(cands, prev, model=cfg.llm_model)
     stats = {"videos": 0, "llm_calls": 0, "llm_failed": False}
     started_at: dict[str, str] = {}
     channel_of: dict[str, str] = {}
