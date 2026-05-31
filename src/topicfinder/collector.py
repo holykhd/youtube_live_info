@@ -81,10 +81,18 @@ def _default_fetch_lines(video_id: str, *, timeout_sec: int = 45) -> list[str]:
     out_tmpl = os.path.join(tmpdir, "chat.%(ext)s")
     cmd = ["yt-dlp", "--skip-download", "--write-subs",
            "--sub-langs", "live_chat", "-o", out_tmpl, url]
+    # 라이브는 채팅이 끝나지 않으므로 timeout 후 SIGTERM(graceful)으로 종료시켜
+    # yt-dlp가 .part 파일을 디스크에 flush 하도록 한다. SIGKILL은 flush를 막는다.
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+        proc.wait(timeout=timeout_sec)
     except subprocess.TimeoutExpired:
-        pass  # 라이브: 부분 .part 파일 사용
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
     files = sorted(glob.glob(os.path.join(tmpdir, "chat.live_chat.json*")))
     lines: list[str] = []
     if files:
