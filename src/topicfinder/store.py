@@ -94,3 +94,45 @@ class Store:
         ).fetchall()
         return [ChatMsg(r["video_id"], r["t_sec"], r["author"], r["message"])
                 for r in rows]
+
+    # --- topics / matches (사이클 스냅샷) ---
+    def save_topics(self, topics: list[Topic]) -> None:
+        cur = self.conn.cursor()
+        cur.execute("DELETE FROM topic_matches")
+        cur.execute("DELETE FROM topics")
+        for t in topics:
+            cur.execute(
+                "INSERT INTO topics(label, hot_score, channel_count) VALUES(?,?,?)",
+                (t.label, t.hot_score, t.channel_count),
+            )
+            tid = cur.lastrowid
+            for m in t.members:
+                cur.execute(
+                    "INSERT OR IGNORE INTO topic_matches"
+                    "(topic_id, video_id, start_t_sec, start_abs, jump_url) "
+                    "VALUES(?,?,?,?,?)",
+                    (tid, m.video_id, m.start_t_sec, m.start_abs, m.jump_url),
+                )
+        self.conn.commit()
+
+    def load_topics(self) -> list[Topic]:
+        trows = self.conn.execute(
+            "SELECT id, label, hot_score, channel_count FROM topics "
+            "ORDER BY hot_score DESC"
+        ).fetchall()
+        topics = []
+        for tr in trows:
+            mrows = self.conn.execute(
+                "SELECT video_id, start_t_sec, start_abs, jump_url "
+                "FROM topic_matches WHERE topic_id=? ORDER BY start_abs",
+                (tr["id"],),
+            ).fetchall()
+            members = [TopicMatch(m["video_id"], m["start_t_sec"],
+                                  m["start_abs"], m["jump_url"]) for m in mrows]
+            topics.append(Topic(tr["label"], tr["hot_score"],
+                                tr["channel_count"], members))
+        return topics
+
+    def current_labels(self) -> list[str]:
+        rows = self.conn.execute("SELECT label FROM topics").fetchall()
+        return [r["label"] for r in rows]
