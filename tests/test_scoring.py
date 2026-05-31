@@ -30,3 +30,8 @@ def test_to_absolute_time_adds_seconds():
 
 def test_jump_url_format():
     assert jump_url("abc123", 152.0) == "https://www.youtube.com/watch?v=abc123&t=152s"
+
+
+def test_jump_url_clamps_negative_offset():
+    # 재방송 음수 오프셋 → t=0 으로 클램프(무효 링크 방지)
+    assert jump_url("abc123", -22200.0) == "https://www.youtube.com/watch?v=abc123&t=0s"

@@ -25,4 +25,7 @@ def to_absolute_time(started_at_iso: str, t_sec: float) -> str:
 
 
 def jump_url(video_id: str, t_sec: float) -> str:
-    return f"https://www.youtube.com/watch?v={video_id}&t={int(t_sec)}s"
+    # 재방송(DVR) 채팅은 videoOffsetTimeMsec가 음수일 수 있다 → 링크가 무효가 되지
+    # 않도록 0으로 클램프(최소한 영상 시작으로 이동).
+    t = max(0, int(t_sec))
+    return f"https://www.youtube.com/watch?v={video_id}&t={t}s"
