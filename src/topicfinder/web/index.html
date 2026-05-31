@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>유튜브 라이브 핫 주제</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; background:#0f1115; color:#e6e6e6; }
+    h1 { font-size: 20px; }
+    .topic { border:1px solid #2a2f3a; border-radius:10px; padding:14px; margin:12px 0; }
+    .label { font-size:16px; font-weight:700; }
+    .score { color:#8ab4ff; font-size:13px; }
+    .member { margin:6px 0; font-size:14px; }
+    a { color:#7ee787; text-decoration:none; }
+    input,button { padding:8px; border-radius:8px; border:1px solid #2a2f3a; background:#1a1d24; color:#e6e6e6; }
+  </style>
+</head>
+<body>
+  <h1>🔥 오늘의 핫한 라이브 주제</h1>
+  <div>
+    <input id="url" placeholder="채널 주소 (예: https://youtube.com/@handle)" size="40" />
+    <button onclick="addChannel()">채널 추가</button>
+  </div>
+  <div id="channels"></div>
+  <hr/>
+  <div id="topics">불러오는 중…</div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

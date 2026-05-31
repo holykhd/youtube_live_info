@@ -31,4 +31,8 @@ def create_app(store: Store) -> FastAPI:
         html = Path(__file__).parent / "web" / "index.html"
         return html.read_text(encoding="utf-8") if html.exists() else "<h1>topicfinder</h1>"
 
+    from fastapi.staticfiles import StaticFiles
+    web_dir = Path(__file__).parent / "web"
+    app.mount("/static", StaticFiles(directory=str(web_dir)), name="static")
+
     return app
