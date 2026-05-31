@@ -72,3 +72,28 @@ def test_run_cycle_default_judge_uses_cfg_llm_model(monkeypatch):
     # judge 를 주입하지 않음 → 기본 judge 경로 사용
     stats = sched.run_cycle(s, cfg, KIWI, identify=fi, collect=fc)
     assert captured["model"] == "sonnet"
+
+
+def test_run_cycle_handles_negative_offset_chat():
+    s = Store(":memory:")
+    s.upsert_channel("https://youtube.com/@a")
+
+    def fake_identify(url):
+        return VideoRef("v1", "재방송", "LIVE", "2026-05-31T16:00:00+09:00", url)
+
+    def fake_collect(video_id, since_t):
+        # 재방송: 음수 오프셋 채팅 (since_t=UNSEEN_CURSOR 이므로 모두 통과해야 함)
+        base = [ChatMsg("v1", -3000.0, "u1", "연준 금리 인상 발언"),
+                ChatMsg("v1", -2990.0, "u2", "파월 금리 동결 시사"),
+                ChatMsg("v1", -2980.0, "u3", "금리 인하 기대감")]
+        return [m for m in base if m.t_sec > since_t]
+
+    def fake_judge(cands, prev_labels):
+        return [{"label": "금리", "members": [{"video": b.video_id, "bucket": b.bucket_start}
+                                              for b in cands]}]
+
+    cfg = Config(activity_threshold=0.0, min_keywords=1, bucket_size_sec=120)
+    stats = run_cycle(s, cfg, KIWI, identify=fake_identify, collect=fake_collect, judge=fake_judge)
+    topics = s.load_topics()
+    assert stats["videos"] == 1
+    assert len(topics) >= 1            # 음수 오프셋 채팅도 주제로 잡힘 (이전엔 0이었음)

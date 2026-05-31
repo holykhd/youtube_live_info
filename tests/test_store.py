@@ -20,7 +20,8 @@ def test_upsert_video_and_get_cursor():
     v = VideoRef("v1", "제목", "LIVE", "2026-05-31T14:00:00+09:00",
                  "https://youtube.com/@a")
     s.upsert_video(v)
-    assert s.get_last_chat_t("v1") == 0.0
+    from topicfinder.store import UNSEEN_CURSOR
+    assert s.get_last_chat_t("v1") == UNSEEN_CURSOR     # 미수집 → 센티넬
     s.set_last_chat_t("v1", 152.0)
     assert s.get_last_chat_t("v1") == 152.0
 
@@ -40,6 +41,15 @@ def test_get_chats_since():
     after = s.get_chats_since("v1", 100.0)
     assert len(after) == 1
     assert after[0].t_sec == 200.0
+
+
+def test_get_chats_since_includes_negative_offsets_with_sentinel():
+    from topicfinder.store import UNSEEN_CURSOR
+    s = make_store()
+    s.insert_chats([ChatMsg("v1", -32000.0, "u", "재방송 채팅"),
+                    ChatMsg("v1", -3000.0, "u", "최근 재방송 채팅")])
+    allc = s.get_chats_since("v1", UNSEEN_CURSOR)
+    assert len(allc) == 2          # 음수 오프셋도 전부 포함
 
 
 from topicfinder.models import Topic, TopicMatch

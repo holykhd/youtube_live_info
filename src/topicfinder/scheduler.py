@@ -1,5 +1,5 @@
 from topicfinder.config import Config
-from topicfinder.store import Store
+from topicfinder.store import Store, UNSEEN_CURSOR
 from topicfinder.filtering import analyze_video
 from topicfinder.topic_engine import build_topics
 from topicfinder.models import Bucket, Topic, TopicMatch
@@ -74,7 +74,7 @@ def run_cycle(store: Store, cfg: Config, kiwi, *,
             store.insert_chats(new_msgs)
             store.set_last_chat_t(v.video_id, max(m.t_sec for m in new_msgs))
 
-        chats = store.get_chats_since(v.video_id, -1.0)
+        chats = store.get_chats_since(v.video_id, UNSEEN_CURSOR)
         buckets = analyze_video(
             chats, kiwi, bucket_size=cfg.bucket_size_sec,
             activity_threshold=cfg.activity_threshold,

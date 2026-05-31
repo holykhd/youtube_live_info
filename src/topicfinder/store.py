@@ -1,6 +1,8 @@
 import sqlite3
 from topicfinder.models import ChannelRef, VideoRef, ChatMsg, Topic, TopicMatch
 
+UNSEEN_CURSOR = -1e18   # "아직 수집 안 함" 센티넬 (음수 오프셋보다 작음)
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS channels (
   id INTEGER PRIMARY KEY, url TEXT UNIQUE, channel_id TEXT, title TEXT,
@@ -8,7 +10,7 @@ CREATE TABLE IF NOT EXISTS channels (
 );
 CREATE TABLE IF NOT EXISTS videos (
   id INTEGER PRIMARY KEY, video_id TEXT UNIQUE, channel_url TEXT,
-  title TEXT, status TEXT, started_at TEXT, last_chat_t REAL DEFAULT 0,
+  title TEXT, status TEXT, started_at TEXT, last_chat_t REAL,
   updated_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS chats (
@@ -68,7 +70,9 @@ class Store:
         row = self.conn.execute(
             "SELECT last_chat_t FROM videos WHERE video_id=?", (video_id,)
         ).fetchone()
-        return row["last_chat_t"] if row else 0.0
+        if row is None or row["last_chat_t"] is None:
+            return UNSEEN_CURSOR
+        return row["last_chat_t"]
 
     def set_last_chat_t(self, video_id: str, t: float) -> None:
         self.conn.execute(
